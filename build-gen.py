@@ -10,16 +10,42 @@ sys.path.insert(0, _path_to('../mybuild-git'))
 
 from _compat import *
 
+import platform
 from pprint import pprint
 
+import jinja2
+from jinja2 import Environment, FileSystemLoader
+
+import mybuild
+from mybuild.binding import pydsl
 from mybuild.context import resolve
 from mybuild.solver import SolveError
 from mybuild.rgraph import *
+from util.operator import getter
 
 import loader
+import filters
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+env = Environment(loader=FileSystemLoader(_path_to('templates')))
+for name in filters.__all__:
+    env.filters[name] = getattr(filters, name)
+
+env.globals['mybuild_version'] = mybuild.__version__
+env.globals['jinja2_version']  = jinja2.__version__
+env.globals['python_version']  = platform.python_version()
+
+env.globals['file_out'] = {
+    'lds': '$(OBJ_DIR)/%.lds.S',
+}
+
+env.globals['module_out'] = {
+    'ar': '$(OBJ_DIR)/module/%.a',
+    'ld': '$(OBJ_DIR)/module/%.o',
+}
 
 
 def my_resolve(conf_module):
@@ -52,7 +78,14 @@ def print_reason(rgraph, reason, depth):
 
 
 def buildgen(modules):
-    pass
+    ar_modules = [module for module in modules
+                  if getattr(module, 'isstatic', False)]  # XXX toposort
+    ld_modules = [module for module in modules
+                  if not getattr(module, 'isstatic', False)]
+    files = [filename for module in modules
+             for filename in module.my.absfiles]
+    attrs = dict(locals())
+    print(env.get_template('image.rule.mk.tmpl').render(attrs))
 
 def main():
     loader.init_and_load()
@@ -83,7 +116,7 @@ def main():
     except SolveError:
         return
 
-    buildgen(modules)
+    buildgen(sorted(modules.values(), key=getter._fullname))
 
 if __name__ == '__main__':
     import util, logging
