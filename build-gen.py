@@ -57,9 +57,29 @@ def buildgen(modules):
 def main():
     loader.init_and_load()
     from genconfig.mods import conf
+    import embox
+
+    @pydsl.module
+    def build(self):
+        self.depends.extend([
+            conf,
+
+            # Mandatory modules
+            embox.arch.system,
+            embox.arch.cpu,
+            embox.arch.interrupt,
+            embox.arch.context,
+            embox.arch.mmu,
+            embox.arch.syscall,
+            embox.arch.usermode,
+            embox.arch.smp,
+            embox.kernel.Kernel,
+            embox.kernel.spinlock,
+            embox.lib.debug.whereami_api,
+        ])
 
     try:
-        modules = my_resolve(conf)
+        modules = my_resolve(build)
     except SolveError:
         return
 
